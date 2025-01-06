@@ -277,6 +277,44 @@ export class Page extends EventTarget {
     return this.#celestial;
   }
 
+  authenticate({ username, password }: { username: string, password: string; }): Promise<void> {
+    const s1 = `${username}:${password}`;
+    const auth = globalThis.btoa(unescape(encodeURIComponent(s1)));
+    return this.#celestial.Network.setExtraHTTPHeaders({ headers: { "Authorization": `Basic ${auth}` } });
+  }
+  on(type: string, handler: (event: any) => void,
+  ): this {
+    super.addEventListener(type, handler);
+    return this;
+  }
+  //https://github.com/puppeteer/puppeteer/blob/main/packages/puppeteer-core/src/api/Page.ts
+  // on<K extends keyof EventsWithWildcard<PageEvents>>(
+  //   type: K,
+  //   handler: (event: EventsWithWildcard<PageEvents>[K]) => void,
+  // ): this {
+  //   if (type !== PageEvent.Request) {
+  //     return super.on(type, handler);
+  //   }
+  //   let wrapper = this.#requestHandlers.get(
+  //     handler as (event: PageEvents[PageEvent.Request]) => void,
+  //   );
+  //   if (wrapper === undefined) {
+  //     wrapper = (event: HTTPRequest) => {
+  //       event.enqueueInterceptAction(() => {
+  //         return handler(event as EventsWithWildcard<PageEvents>[K]);
+  //       });
+  //     };
+  //     this.#requestHandlers.set(
+  //       handler as (event: PageEvents[PageEvent.Request]) => void,
+  //       wrapper,
+  //     );
+  //   }
+  //   return super.on(
+  //     type,
+  //     wrapper as (event: EventsWithWildcard<PageEvents>[K]) => void,
+  //   );
+  // }
+
   /**
    * Runs `document.querySelector` within the page. If no element matches the selector, the return value resolves to `null`.
    *
@@ -422,7 +460,7 @@ export class Page extends EventTarget {
   /**
    * `page.setViewportSize()` will resize the page. A lot of websites don't expect phones to change size, so you should set the viewport size before navigating to the page.
    */
-  async setViewportSize(size: { width: number; height: number }) {
+  async setViewportSize(size: { width: number; height: number; }) {
     await this.#celestial.Emulation.setDeviceMetricsOverride({
       ...size,
       deviceScaleFactor: 0,
@@ -492,9 +530,8 @@ export class Page extends EventTarget {
   ): Promise<T> {
     if (typeof func === "function") {
       const args = evaluateOptions?.args ?? [];
-      func = `(${func.toString()})(${
-        args.map((arg) => `${JSON.stringify(arg)}`).join(",")
-      })`;
+      func = `(${func.toString()})(${args.map((arg) => `${JSON.stringify(arg)}`).join(",")
+        })`;
     }
     const { result, exceptionDetails } = await retryDeadline(
       this.#celestial.Runtime.evaluate({

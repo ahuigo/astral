@@ -96,6 +96,7 @@ export class Browser {
     opts: BrowserOptions,
   ) {
     this.#celestial = new Celestial(ws);
+    // this.#celestial.setExtraHTTPHeaders
     this.#process = process;
     this.#options = opts;
   }
