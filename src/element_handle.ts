@@ -36,7 +36,7 @@ export interface BoxModel {
 }
 
 /** Click options on an element */
-export type ElementClickOptions = { offset?: Offset } & MouseClickOptions;
+export type ElementClickOptions = { offset?: Offset; } & MouseClickOptions;
 
 function intoPoints(pointsRaw: number[]) {
   const points: Point[] = [];
@@ -113,6 +113,73 @@ export class ElementHandle {
     }
 
     return new ElementHandle(result.nodeId, this.#celestial, this.#page);
+  }
+
+  async $x(xpath: string): Promise<ElementHandle[]> {
+    // const a = await this.#celestial.Runtime.evaluate({
+    //   "expression": `$x("${xpath}")`,
+    //   // "contextId": this.#page.executionContextId,
+    // });
+    const ev = await this.#celestial.Runtime.evaluate({
+      expression: `  
+      (() => {  
+        const iterator = document.evaluate(  
+          "${xpath}",  
+          document,  
+          null,  
+          XPathResult.ORDERED_NODE_ITERATOR_TYPE,  
+          null  
+        );  
+        const nodes = [];  
+        let node = iterator.iterateNext();  
+        while (node) {  
+          nodes.push(node);  
+          node = iterator.iterateNext();  
+        }  
+        return nodes;  
+      })()  
+    `,
+      awaitPromise: true,
+      returnByValue: false, // 关键：返回对象引用  
+    });
+    const { result } = ev;
+
+    // 2. 如果没有找到元素，返回空数组  
+    if (!result.objectId) {
+      return [];
+    }
+
+    // 3. 获取数组的属性（即数组中的每个元素）  
+    const { result: properties } = await this.#celestial.Runtime.getProperties({
+      objectId: result.objectId,
+      ownProperties: true,
+    });
+
+    // 4. 过滤出数组元素（排除 length 等属性）  
+    const elementProperties = properties.filter(
+      (prop) => !isNaN(Number(prop.name)) && prop.value?.objectId
+    );
+
+    // 5. 将每个元素的 objectId 转换为 nodeId  
+    const elementHandles = await Promise.all(
+      elementProperties.map(async (prop) => {
+        const { nodeId } = await this.#celestial.DOM.requestNode({
+          objectId: prop.value!.objectId!,
+        });
+        return new ElementHandle(nodeId, this.#celestial, this.#page);
+      })
+    );
+
+    return elementHandles;
+
+    // 2. Convert objectId to nodeId  
+    const nodeInfo = await this.#celestial.DOM.requestNode({
+      objectId: result.objectId!
+    });
+    const { nodeId } = nodeInfo;// nodeInfo 为何是undefined？？？
+
+    // 3. Create ElementHandle  
+    const element = new ElementHandle(nodeId, this.#celestial, this.#page);
   }
 
   /**
@@ -282,7 +349,7 @@ export class ElementHandle {
    * This method scrolls element into view if needed, and then uses `Page.screenshot()` to take a screenshot of the element.
    */
   async screenshot(
-    opts?: Omit<ScreenshotOptions, "clip"> & { scale?: number },
+    opts?: Omit<ScreenshotOptions, "clip"> & { scale?: number; },
   ): Promise<Uint8Array> {
     await this.scrollIntoView();
 

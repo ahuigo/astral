@@ -12,16 +12,16 @@ import type { Browser } from "./browser.ts";
 import { Dialog } from "./dialog.ts";
 import { ElementHandle } from "./element_handle.ts";
 import { FileChooser } from "./file_chooser.ts";
-import { Keyboard } from "./keyboard/mod.ts";
-import { Locator } from "./locator.ts";
-import { Mouse } from "./mouse.ts";
-import { Touchscreen } from "./touchscreen.ts";
-import { convertToUint8Array, retryDeadline } from "./util.ts";
 import {
   cdpRequestToRequest,
   InterceptorError,
   responseToCdpResponse,
 } from "./interceptor.ts";
+import { Keyboard } from "./keyboard/mod.ts";
+import { Locator } from "./locator.ts";
+import { Mouse } from "./mouse.ts";
+import { Touchscreen } from "./touchscreen.ts";
+import { convertToUint8Array, retryDeadline } from "./util.ts";
 
 /** The options for deleting a cookie */
 export type DeleteCookieOptions = Omit<
@@ -72,9 +72,9 @@ export type WaitForNetworkIdleOptions = {
 export type SandboxOptions = {
   sandbox?: boolean | {
     permissions:
-      | "inherit"
-      | "none"
-      | Pick<Deno.PermissionOptionsObject, "read" | "net" | "import">;
+    | "inherit"
+    | "none"
+    | Pick<Deno.PermissionOptionsObject, "read" | "net" | "import">;
   };
 };
 
@@ -86,7 +86,7 @@ type SandboxNormalizedOptions = SandboxOptions & {
 export type InterceptorOptions = {
   interceptor?: (
     request: Request,
-    infos: { resourceType: Network_ResourceType },
+    infos: { resourceType: Network_ResourceType; },
   ) => Promise<Response | null | void> | Response | null | void;
 };
 
@@ -357,8 +357,7 @@ export class Page extends EventTarget implements AsyncDisposable {
     }
     const { promise, resolve } = Promise.withResolvers<Deno.PermissionState>();
     const worker = new Worker(
-      `data:,postMessage(Deno.permissions.requestSync(${
-        JSON.stringify(descriptor)
+      `data:,postMessage(Deno.permissions.requestSync(${JSON.stringify(descriptor)
       }).state);self.close()`,
       { type: "module", deno: { permissions } },
     );
@@ -411,7 +410,7 @@ export class Page extends EventTarget implements AsyncDisposable {
    * ```
    */
   authenticate(
-    { username, password }: { username: string; password: string },
+    { username, password }: { username: string; password: string; },
   ): Promise<void> {
     function base64encoded(s: string) {
       const bytes = new TextEncoder().encode(s);
@@ -435,6 +434,11 @@ export class Page extends EventTarget implements AsyncDisposable {
   async $(selector: string): Promise<ElementHandle | null> {
     const root = await this.#getRoot();
     return root.$(selector);
+  }
+
+  async $x(selector: string): Promise<ElementHandle[]> {
+    const root = await this.#getRoot();
+    return root.$x(selector);
   }
 
   /**
@@ -506,9 +510,17 @@ export class Page extends EventTarget implements AsyncDisposable {
    */
   async content(): Promise<string> {
     // https://stackoverflow.com/questions/6088972/get-doctype-of-an-html-as-string-with-javascript
-    return await this.evaluate(
-      `"<!DOCTYPE " + document.doctype.name + (document.doctype.publicId ? ' PUBLIC "' + document.doctype.publicId + '"' : '') + (!document.doctype.publicId && document.doctype.systemId ? ' SYSTEM' : '') + (document.doctype.systemId ? ' "' + document.doctype.systemId + '"' : '') + '>\\n' + document.documentElement.outerHTML`,
-    );
+    return await this.evaluate(() => {
+      const dt = document.doctype;
+      let doctypeStr = "";
+      if (dt) {
+        doctypeStr = "<!DOCTYPE " + (dt.name || "html") +
+          (dt.publicId ? ' PUBLIC "' + dt.publicId + '"' : '') +
+          (!dt.publicId && dt.systemId ? ' SYSTEM' : '') +
+          (dt.systemId ? ' "' + dt.systemId + '"' : '') + '\n';
+      }
+      return doctypeStr + document.documentElement.outerHTML;
+    });
   }
 
   /**
@@ -568,7 +580,7 @@ export class Page extends EventTarget implements AsyncDisposable {
   /**
    * `page.setViewportSize()` will resize the page. A lot of websites don't expect phones to change size, so you should set the viewport size before navigating to the page.
    */
-  async setViewportSize(size: { width: number; height: number }) {
+  async setViewportSize(size: { width: number; height: number; }) {
     await this.#celestial.Emulation.setDeviceMetricsOverride({
       ...size,
       deviceScaleFactor: 0,
@@ -640,9 +652,8 @@ export class Page extends EventTarget implements AsyncDisposable {
     if (typeof func === "function") {
       collectCoverage = Boolean(this.#coverage);
       const args = evaluateOptions?.args ?? [];
-      func = `(${func.toString()})(${
-        args.map((arg) => `${JSON.stringify(arg)}`).join(",")
-      })`;
+      func = `(${func.toString()})(${args.map((arg) => `${JSON.stringify(arg)}`).join(",")
+        })`;
     }
 
     if (collectCoverage) {
